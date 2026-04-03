@@ -1,110 +1,117 @@
 import type { Program } from '../types';
 
-const parseXmltvDate = (dateStr: string): Date => {
-  // XMLTV format: 20240101120000 +0000
-  const cleaned = dateStr.replace(/\s+[+-]\d{4}$/, '').trim();
-  const year = cleaned.substring(0, 4);
-  const month = cleaned.substring(4, 6);
-  const day = cleaned.substring(6, 8);
-  const hour = cleaned.substring(8, 10);
-  const min = cleaned.substring(10, 12);
-  const sec = cleaned.substring(12, 14) || '00';
-  return new Date(`${year}-${month}-${day}T${hour}:${min}:${sec}Z`);
-};
-
-export const parseXMLTV = (xmlText: string): Record<string, Program[]> => {
+export function parseXMLTV(xmlText: string, channelIds: string[]): Map<string, Program[]> {
   const parser = new DOMParser();
-  const doc = parser.parseFromString(xmlText, 'application/xml');
-  const programmes = doc.querySelectorAll('programme');
-  const result: Record<string, Program[]> = {};
+  const doc = parser.parseFromString(xmlText, 'text/xml');
+  const programs = new Map<string, Program[]>();
 
-  programmes.forEach((prog, index) => {
-    const channelId = prog.getAttribute('channel') || '';
-    const start = prog.getAttribute('start') || '';
-    const stop = prog.getAttribute('stop') || '';
-    const titleEl = prog.querySelector('title');
-    const descEl = prog.querySelector('desc');
+  const programmeElements = doc.querySelectorAll('programme');
+  programmeElements.forEach((el, idx) => {
+    const channelId = el.getAttribute('channel') || '';
+    if (!channelIds.includes(channelId)) return;
+
+    const startStr = el.getAttribute('start') || '';
+    const stopStr = el.getAttribute('stop') || '';
+    const title = el.querySelector('title')?.textContent || 'Unknown';
+    const desc = el.querySelector('desc')?.textContent || '';
+
+    const startTime = parseXMLTVDate(startStr);
+    const endTime = parseXMLTVDate(stopStr);
+
+    if (!startTime || !endTime) return;
 
     const program: Program = {
-      id: `prog-${index}`,
+      id: `prog-${channelId}-${idx}`,
       channelId,
-      title: titleEl?.textContent || 'Unknown Programme',
-      description: descEl?.textContent || '',
-      start: parseXmltvDate(start),
-      stop: parseXmltvDate(stop),
+      title,
+      description: desc,
+      startTime,
+      endTime,
     };
 
-    if (!result[channelId]) result[channelId] = [];
-    result[channelId].push(program);
+    if (!programs.has(channelId)) programs.set(channelId, []);
+    programs.get(channelId)!.push(program);
   });
 
-  return result;
-};
+  return programs;
+}
 
-export const generateMockEPG = (channelIds: string[]): Record<string, Program[]> => {
-  const mockShows = [
-    { title: 'Morning News', duration: 60 },
-    { title: 'Breakfast Show', duration: 90 },
-    { title: 'Daytime Drama', duration: 30 },
-    { title: 'Chat Show', duration: 60 },
-    { title: 'Reality Special', duration: 60 },
-    { title: 'Drama Series', duration: 45 },
-    { title: 'Comedy Hour', duration: 30 },
-    { title: 'Documentary', duration: 60 },
-    { title: 'Evening News', duration: 30 },
-    { title: 'Prime Time Drama', duration: 60 },
-    { title: 'Reality Show', duration: 60 },
-    { title: 'Late Night Talk', duration: 60 },
-    { title: 'Music Show', duration: 30 },
-    { title: 'Film', duration: 120 },
-    { title: 'Highlights', duration: 30 },
+function parseXMLTVDate(dateStr: string): Date | null {
+  // Format: YYYYMMDDHHMMSS +HHMM
+  const match = dateStr.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})\s*([+-]\d{4})?/);
+  if (!match) return null;
+
+  const [, year, month, day, hour, min, sec, tz] = match;
+  let offset = 0;
+  if (tz) {
+    const tzSign = tz[0] === '+' ? 1 : -1;
+    const tzHour = parseInt(tz.slice(1, 3));
+    const tzMin = parseInt(tz.slice(3, 5));
+    offset = tzSign * (tzHour * 60 + tzMin);
+  }
+
+  const utcMs = Date.UTC(
+    parseInt(year),
+    parseInt(month) - 1,
+    parseInt(day),
+    parseInt(hour),
+    parseInt(min),
+    parseInt(sec)
+  ) - offset * 60 * 1000;
+
+  return new Date(utcMs);
+}
+
+export function generateMockEPG(channelIds: string[]): Map<string, Program[]> {
+  const programs = new Map<string, Program[]>();
+
+  const showTitles = [
+    "Morning News", "The Breakfast Show", "Cooking with Stars", "Drama Hour",
+    "Game Show Bonanza", "Evening News", "Reality Showdown", "Late Night Live",
+    "Music Hits", "Documentary Night", "Sports Roundup", "Comedy Club",
+    "RuPaul's Drag Race", "Love Island", "EastEnders", "Coronation Street",
+    "The Crown", "Bridgerton", "Strictly Come Dancing", "Big Brother",
+    "The Great British Bake Off", "MasterChef", "The Traitors", "Made in Chelsea",
   ];
 
-  const result: Record<string, Program[]> = {};
+  const descriptions = [
+    "Join us for an exciting hour of entertainment.",
+    "Don't miss this spectacular episode full of drama and surprises.",
+    "The best contestants face off in tonight's challenge.",
+    "Exclusive behind-the-scenes footage and special guests.",
+    "A fan-favourite episode that you won't want to miss.",
+  ];
 
-  channelIds.forEach(channelId => {
-    const programs: Program[] = [];
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
-    let current = startOfDay.getTime();
-    let progIndex = 0;
+  const now = new Date();
+  const startOfDay = new Date(now);
+  startOfDay.setHours(6, 0, 0, 0);
 
-    while (current < startOfDay.getTime() + 24 * 60 * 60 * 1000) {
-      const show = mockShows[progIndex % mockShows.length];
-      const start = new Date(current);
-      const stop = new Date(current + show.duration * 60 * 1000);
-      programs.push({
-        id: `mock-${channelId}-${progIndex}`,
+  for (const channelId of channelIds) {
+    const channelPrograms: Program[] = [];
+    let currentTime = new Date(startOfDay);
+    let progIdx = 0;
+
+    while (currentTime < new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000)) {
+      const durationMins = [30, 60, 90, 120][Math.floor(Math.random() * 4)];
+      const endTime = new Date(currentTime.getTime() + durationMins * 60 * 1000);
+      const title = showTitles[(progIdx + channelId.charCodeAt(0)) % showTitles.length];
+      const desc = descriptions[progIdx % descriptions.length];
+
+      channelPrograms.push({
+        id: `mock-${channelId}-${progIdx}`,
         channelId,
-        title: show.title,
-        description: `Watch ${show.title} on this channel. An entertaining programme for all the family.`,
-        start,
-        stop,
+        title,
+        description: desc,
+        startTime: new Date(currentTime),
+        endTime,
       });
-      current = stop.getTime();
-      progIndex++;
+
+      currentTime = endTime;
+      progIdx++;
     }
 
-    result[channelId] = programs;
-  });
+    programs.set(channelId, channelPrograms);
+  }
 
-  return result;
-};
-
-export const fetchEPG = async (url: string): Promise<Record<string, Program[]>> => {
-  const proxiedUrl = `https://corsproxy.io/?url=${encodeURIComponent(url)}`;
-  const response = await fetch(proxiedUrl);
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  const text = await response.text();
-  return parseXMLTV(text);
-};
-
-export const getCurrentProgram = (programs: Program[]): Program | null => {
-  const now = new Date();
-  return programs.find(p => p.start <= now && p.stop > now) || null;
-};
-
-export const getUpcomingPrograms = (programs: Program[], count = 3): Program[] => {
-  const now = new Date();
-  return programs.filter(p => p.start > now).slice(0, count);
-};
+  return programs;
+}

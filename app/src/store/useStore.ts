@@ -1,83 +1,86 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { AppState, Channel, UserProfile, ThemeKey, Program, NotificationData } from '../types';
-import { applyTheme } from '../data/themes';
+import type { Channel, Program, UserProfile, Notification, ProgramPopupData } from '../types';
 
-interface AppActions {
-  completeSetup: () => void;
-  setProfile: (profile: UserProfile) => void;
-  setFavouriteShowIds: (ids: string[]) => void;
-  setAllChannels: (channels: Channel[]) => void;
-  setFavouriteChannels: (channels: Channel[]) => void;
-  setCurrentChannel: (channel: Channel | null) => void;
-  setEpgData: (data: Record<string, Program[]>) => void;
-  setTheme: (theme: ThemeKey) => void;
-  setView: (view: 'epg' | 'player') => void;
-  showNotification: (notification: NotificationData) => void;
-  dismissNotification: () => void;
-  setChannelsLoading: (loading: boolean) => void;
-  setEpgLoading: (loading: boolean) => void;
-  resetSetup: () => void;
+interface StoreState {
+  // Profile
+  profile: UserProfile;
+  setProfile: (profile: Partial<UserProfile>) => void;
+  
+  // Channels
+  channels: Channel[];
+  setChannels: (channels: Channel[]) => void;
+  activeChannelId: string | null;
+  setActiveChannelId: (id: string | null) => void;
+  
+  // EPG
+  epgData: Map<string, Program[]>;
+  setEpgData: (data: Map<string, Program[]>) => void;
+  
+  // View
+  currentView: 'setup' | 'epg' | 'player';
+  setCurrentView: (view: 'setup' | 'epg' | 'player') => void;
+  
+  // Program popup
+  programPopup: ProgramPopupData | null;
+  setProgramPopup: (data: ProgramPopupData | null) => void;
+  
+  // Notifications
+  notifications: Notification[];
+  addNotification: (notification: Notification) => void;
+  removeNotification: (id: string) => void;
+  dismissedNotifications: string[];
+  addDismissedNotification: (key: string) => void;
 }
 
-const initialState: AppState = {
-  setupComplete: false,
-  profile: null,
-  favouriteShowIds: [],
-  favouriteChannels: [],
-  allChannels: [],
-  epgData: {},
-  currentChannel: null,
-  currentTheme: 'crystal',
-  view: 'epg',
-  notification: null,
-  channelsLoading: false,
-  epgLoading: false,
-};
-
-export const useStore = create<AppState & AppActions>()(
+export const useStore = create<StoreState>()(
   persist(
     (set) => ({
-      ...initialState,
-
-      completeSetup: () => set({ setupComplete: true }),
-
-      setProfile: (profile) => set({ profile }),
-
-      setFavouriteShowIds: (ids) => set({ favouriteShowIds: ids }),
-
-      setAllChannels: (channels) => set({ allChannels: channels }),
-
-      setFavouriteChannels: (channels) => set({ favouriteChannels: channels }),
-
-      setCurrentChannel: (channel) => set({ currentChannel: channel }),
-
-      setEpgData: (data) => set({ epgData: data }),
-
-      setTheme: (theme) => {
-        applyTheme(theme);
-        set({ currentTheme: theme });
+      profile: {
+        name: '',
+        avatar: '✨',
+        favouriteShowIds: [],
+        setupComplete: false,
+        themeId: 'crystal',
       },
+      setProfile: (updates) =>
+        set((state) => ({ profile: { ...state.profile, ...updates } })),
 
-      setView: (view) => set({ view }),
+      channels: [],
+      setChannels: (channels) => set({ channels }),
+      activeChannelId: null,
+      setActiveChannelId: (id) => set({ activeChannelId: id }),
 
-      showNotification: (notification) => set({ notification }),
+      epgData: new Map(),
+      setEpgData: (epgData) => set({ epgData }),
 
-      dismissNotification: () => set({ notification: null }),
+      currentView: 'setup',
+      setCurrentView: (currentView) => set({ currentView }),
 
-      setChannelsLoading: (loading) => set({ channelsLoading: loading }),
+      programPopup: null,
+      setProgramPopup: (programPopup) => set({ programPopup }),
 
-      setEpgLoading: (loading) => set({ epgLoading: loading }),
+      notifications: [],
+      addNotification: (notification) =>
+        set((state) => ({
+          notifications: [...state.notifications, notification],
+        })),
+      removeNotification: (id) =>
+        set((state) => ({
+          notifications: state.notifications.filter((n) => n.id !== id),
+        })),
 
-      resetSetup: () => set({ ...initialState }),
+      dismissedNotifications: [],
+      addDismissedNotification: (key) =>
+        set((state) => ({
+          dismissedNotifications: [...state.dismissedNotifications, key],
+        })),
     }),
     {
       name: 'crystal-tv-storage',
       partialize: (state) => ({
-        setupComplete: state.setupComplete,
         profile: state.profile,
-        favouriteShowIds: state.favouriteShowIds,
-        currentTheme: state.currentTheme,
+        dismissedNotifications: state.dismissedNotifications,
       }),
     }
   )

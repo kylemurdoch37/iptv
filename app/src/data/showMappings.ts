@@ -27,15 +27,4 @@ export const shows: Show[] = [
   { id: 'the-traitors', name: 'The Traitors', emoji: '🗡️', genre: 'Reality', channels: ['BBC One', 'Peacock'] },
 ];
 
-export const getShowById = (id: string): Show | undefined => shows.find(s => s.id === id);
-
-export const getChannelsForShows = (showIds: string[]): string[] => {
-  const channelSet = new Set<string>();
-  showIds.forEach(id => {
-    const show = getShowById(id);
-    if (show) {
-      show.channels.forEach(ch => channelSet.add(ch));
-    }
-  });
-  return Array.from(channelSet);
-};
+export const avatarOptions = ['👑', '💅', '✨', '🦋', '🌸', '💖'];

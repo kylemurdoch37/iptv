@@ -20,16 +20,20 @@ export interface Program {
   channelId: string;
   title: string;
   description: string;
-  start: Date;
-  stop: Date;
+  startTime: Date;
+  endTime: Date;
 }
 
 export interface UserProfile {
   name: string;
   avatar: string;
+  favouriteShowIds: string[];
+  setupComplete: boolean;
+  themeId: string;
 }
 
 export interface Theme {
+  id: string;
   name: string;
   primary: string;
   secondary: string;
@@ -37,27 +41,16 @@ export interface Theme {
   accent: string;
 }
 
-export type ThemeKey = 'crystal' | 'midnight' | 'bubblegum' | 'matrix' | 'classic-sky';
-
-export interface AppState {
-  setupComplete: boolean;
-  profile: UserProfile | null;
-  favouriteShowIds: string[];
-  favouriteChannels: Channel[];
-  allChannels: Channel[];
-  epgData: Record<string, Program[]>;
-  currentChannel: Channel | null;
-  currentTheme: ThemeKey;
-  view: 'epg' | 'player';
-  notification: NotificationData | null;
-  channelsLoading: boolean;
-  epgLoading: boolean;
-}
-
-export interface NotificationData {
+export interface Notification {
   id: string;
   message: string;
+  channelId: string;
   showName: string;
   channelName: string;
-  channel: Channel;
+}
+
+export interface ProgramPopupData {
+  program: Program;
+  channelId: string;
+  channelName: string;
 }
