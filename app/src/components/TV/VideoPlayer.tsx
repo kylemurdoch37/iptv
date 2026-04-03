@@ -2,6 +2,25 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import Hls from 'hls.js';
 import { useStore } from '../../store/useStore';
 
+const CopyButton: React.FC<{ url: string }> = ({ url }) => {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = () => {
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+  return (
+    <button
+      onClick={handleCopy}
+      className="btn-primary"
+      style={{ padding: '8px 16px', fontSize: '11px' }}
+    >
+      {copied ? '✓ Copied!' : '📋 Copy URL'}
+    </button>
+  );
+};
+
 export const VideoPlayer: React.FC = () => {
   const { channels, activeChannelId, setActiveChannelId, setCurrentView, epgData } = useStore();
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -232,23 +251,90 @@ export const VideoPlayer: React.FC = () => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              background: 'rgba(0,0,0,0.85)',
+              background: 'rgba(0,0,0,0.92)',
               flexDirection: 'column',
-              gap: '16px',
-              padding: '20px',
+              gap: '14px',
+              padding: '30px 20px',
               textAlign: 'center',
             }}
           >
-            <div style={{ fontSize: '48px' }}>📡</div>
+            <div style={{ fontSize: '44px' }}>📡</div>
             <div style={{ color: 'white', fontFamily: 'var(--font-main)', fontSize: '16px' }}>
               Stream Unavailable
             </div>
-            <div style={{ color: 'var(--color-text-dim)', fontFamily: 'Arial, sans-serif', fontSize: '13px', maxWidth: '400px' }}>
+            <div style={{ color: 'var(--color-text-dim)', fontFamily: 'Arial, sans-serif', fontSize: '13px', maxWidth: '420px', lineHeight: '1.5' }}>
               {error}
+              {activeChannel.streamUrl.startsWith('http://') && (
+                <span style={{ color: 'var(--color-accent)', display: 'block', marginTop: '6px', fontSize: '12px' }}>
+                  ⚠️ This stream uses HTTP — your browser may be blocking it on HTTPS pages.
+                </span>
+              )}
             </div>
-            <button onClick={() => loadStream(activeChannel.streamUrl)} className="btn-secondary" style={{ marginTop: '8px' }}>
-              Try Again
-            </button>
+
+            {/* Stream URL box */}
+            {activeChannel.streamUrl && (
+              <div style={{
+                background: 'rgba(255,255,255,0.06)',
+                border: '1px solid rgba(255,45,120,0.3)',
+                borderRadius: '4px',
+                padding: '10px 14px',
+                maxWidth: '480px',
+                width: '100%',
+              }}>
+                <div style={{ fontSize: '10px', color: 'var(--color-secondary)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px', fontWeight: '900' }}>
+                  Stream URL
+                </div>
+                <div style={{
+                  fontFamily: 'monospace',
+                  fontSize: '11px',
+                  color: 'rgba(255,255,255,0.7)',
+                  wordBreak: 'break-all',
+                  userSelect: 'all',
+                }}>
+                  {activeChannel.streamUrl}
+                </div>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
+              {/* Copy URL */}
+              {activeChannel.streamUrl && (
+                <CopyButton url={activeChannel.streamUrl} />
+              )}
+              {/* Open in VLC (mobile deep link) */}
+              {activeChannel.streamUrl && (
+                <a
+                  href={`vlc://${activeChannel.streamUrl.replace(/^https?:\/\//, '')}`}
+                  style={{
+                    background: 'transparent',
+                    border: '2px solid var(--color-secondary)',
+                    borderRadius: '4px',
+                    color: 'var(--color-secondary)',
+                    padding: '8px 16px',
+                    cursor: 'pointer',
+                    fontFamily: 'var(--font-main)',
+                    fontSize: '11px',
+                    fontWeight: '900',
+                    textTransform: 'uppercase',
+                    letterSpacing: '1px',
+                    textDecoration: 'none',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  📺 Open in VLC
+                </a>
+              )}
+              <button onClick={() => loadStream(activeChannel.streamUrl)} className="btn-ghost">
+                ↺ Try Again
+              </button>
+            </div>
+
+            <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.25)', fontFamily: 'Arial, sans-serif', maxWidth: '380px', lineHeight: '1.5' }}>
+              On a computer: open VLC → Media → Open Network Stream → paste the URL above
+            </div>
           </div>
         )}
 
