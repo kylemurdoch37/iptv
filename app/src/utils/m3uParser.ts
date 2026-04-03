@@ -138,7 +138,7 @@ export const FALLBACK_CHANNELS: Channel[] = [
   {
     id: 'mtv',
     name: 'MTV',
-    streamUrl: '',
+    streamUrl: 'https://170.254.18.106/MTV/index.m3u8',
     tvgId: 'mtv.us',
     groupTitle: 'US',
     logo: '',
