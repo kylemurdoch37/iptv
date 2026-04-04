@@ -5,7 +5,17 @@ import { matchChannelsToShows } from '../utils/channelMatcher';
 import { shows } from '../data/showMappings';
 
 const CORS_PROXY = 'https://corsproxy.io/?url=';
-const M3U_URL = 'https://iptv-org.github.io/iptv/countries/gb.m3u';
+const M3U_SOURCES = [
+  'https://iptv-org.github.io/iptv/countries/gb.m3u',
+  'https://iptv-org.github.io/iptv/countries/us.m3u',
+];
+
+async function fetchM3U(url: string): Promise<string> {
+  const proxied = `${CORS_PROXY}${encodeURIComponent(url)}`;
+  const resp = await fetch(proxied, { signal: AbortSignal.timeout(20000) });
+  if (!resp.ok) throw new Error(`Failed to fetch ${url}`);
+  return resp.text();
+}
 
 export function useChannels() {
   const { profile, setChannels } = useStore();
@@ -19,19 +29,18 @@ export function useChannels() {
 
     async function fetchChannels() {
       try {
-        const url = `${CORS_PROXY}${encodeURIComponent(M3U_URL)}`;
-        const resp = await fetch(url, { signal: AbortSignal.timeout(15000) });
-        if (!resp.ok) throw new Error('Failed to fetch M3U');
-        const text = await resp.text();
-        const allChannels = parseM3U(text);
+        // Fetch UK + US playlists in parallel, ignore individual failures
+        const results = await Promise.allSettled(M3U_SOURCES.map(fetchM3U));
+
+        const allChannels = results
+          .filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled')
+          .flatMap((r) => parseM3U(r.value));
+
+        if (allChannels.length === 0) throw new Error('No channels loaded');
+
         const matched = matchChannelsToShows(allChannels, favouriteShows);
-        if (matched.length > 0) {
-          setChannels(matched);
-        } else {
-          setChannels(FALLBACK_CHANNELS);
-        }
+        setChannels(matched.length > 0 ? matched : allChannels.slice(0, 50));
       } catch {
-        // Use fallback channels
         const matched = matchChannelsToShows(FALLBACK_CHANNELS, favouriteShows);
         setChannels(matched.length > 0 ? matched : FALLBACK_CHANNELS);
       }
