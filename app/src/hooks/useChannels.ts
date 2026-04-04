@@ -5,7 +5,7 @@ import { matchChannelsToShows } from '../utils/channelMatcher';
 import { shows } from '../data/showMappings';
 
 const CORS_PROXY = 'https://corsproxy.io/?url=';
-const M3U_URL = 'https://iptv-org.github.io/iptv/index.m3u';
+const M3U_URL = 'https://iptv-org.github.io/iptv/countries/gb.m3u';
 
 export function useChannels() {
   const { profile, setChannels } = useStore();
