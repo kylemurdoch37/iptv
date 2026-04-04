@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import Hls from 'hls.js';
 import { useStore } from '../../store/useStore';
+import { proxiedUrl } from '../../utils/streamUrl';
 
 const CopyButton: React.FC<{ url: string }> = ({ url }) => {
   const [copied, setCopied] = useState(false);
@@ -68,13 +69,16 @@ export const VideoPlayer: React.FC = () => {
       return;
     }
 
+    // Route through proxy in production to bypass SSL/CORS issues
+    const streamUrl = proxiedUrl(url);
+
     if (Hls.isSupported()) {
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: true,
       });
       hlsRef.current = hls;
-      hls.loadSource(url);
+      hls.loadSource(streamUrl);
       hls.attachMedia(video);
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -96,7 +100,7 @@ export const VideoPlayer: React.FC = () => {
       });
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       // Safari native HLS
-      video.src = url;
+      video.src = streamUrl;
       video.addEventListener('loadedmetadata', () => {
         setIsLoading(false);
         video.play().catch(() => {});
@@ -107,7 +111,7 @@ export const VideoPlayer: React.FC = () => {
       }, { once: true });
     } else {
       // Fallback: try as direct src
-      video.src = url;
+      video.src = streamUrl;
       setIsLoading(false);
     }
   }, []);
