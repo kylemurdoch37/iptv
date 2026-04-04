@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import Hls from 'hls.js';
 import { useStore } from '../../store/useStore';
 import { proxiedUrl } from '../../utils/streamUrl';
+import { useBreakpoint } from '../../hooks/useBreakpoint';
 
 const CopyButton: React.FC<{ url: string }> = ({ url }) => {
   const [copied, setCopied] = useState(false);
@@ -32,6 +33,7 @@ function isUsUk(ch: { groupTitle: string; id: string; tvgId: string }): boolean 
 
 export const VideoPlayer: React.FC = () => {
   const { channels, activeChannelId, setActiveChannelId, setCurrentView, epgData, showAllChannels } = useStore();
+  const { isMobile } = useBreakpoint();
   const stripChannels = showAllChannels ? channels : channels.filter(isUsUk);
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -439,7 +441,7 @@ export const VideoPlayer: React.FC = () => {
               transition: 'all 0.2s ease',
             }}
           >
-            ← Guide
+            {isMobile ? '← Channels' : '← Guide'}
           </button>
         )}
 
@@ -546,8 +548,8 @@ export const VideoPlayer: React.FC = () => {
         </div>
       </div>
 
-      {/* Channel strip below */}
-      <div
+      {/* Channel strip below — desktop only; mobile uses BottomNav + MobileChannelList */}
+      {!isMobile && <div
         style={{
           background: 'rgba(7,7,32,0.95)',
           borderTop: '2px solid rgba(255,45,120,0.2)',
@@ -597,7 +599,7 @@ export const VideoPlayer: React.FC = () => {
             );
           })}
         </div>
-      </div>
+      </div>}
 
       <style>{`
         @keyframes spin {

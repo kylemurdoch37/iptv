@@ -1,9 +1,14 @@
 import React from 'react';
 import { useStore } from '../../store/useStore';
 import { shows } from '../../data/showMappings';
+import { useBreakpoint } from '../../hooks/useBreakpoint';
 
 export const Sidebar: React.FC = () => {
+  const { isMobile } = useBreakpoint();
   const { channels, workingChannels, activeChannelId, setActiveChannelId, setCurrentView, profile, epgData } = useStore();
+
+  // On mobile, the sidebar is replaced by BottomNav + MobileChannelList
+  if (isMobile) return null;
   const displayChannels = workingChannels.length > 0 ? workingChannels : channels;
 
   const now = new Date();
