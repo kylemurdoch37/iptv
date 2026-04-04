@@ -25,9 +25,26 @@ module.exports = async function handler(req, res) {
   const parsed = new URL(targetUrl)
   const isHttps = parsed.protocol === 'https:'
   const lib = isHttps ? https : http
-  const reqOptions = isHttps ? { agent: httpsAgent } : {}
+  const reqOptions = {
+    ...(isHttps ? { agent: httpsAgent } : {}),
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept': '*/*',
+      'Accept-Language': 'en-GB,en;q=0.9',
+      'Referer': `${parsed.origin}/`,
+    },
+  }
 
   const proxyReq = lib.get(targetUrl, reqOptions, (proxyRes) => {
+    // Follow redirects
+    if (proxyRes.statusCode >= 300 && proxyRes.statusCode < 400 && proxyRes.headers.location) {
+      proxyRes.resume()
+      const redirectUrl = proxyRes.headers.location.startsWith('http')
+        ? proxyRes.headers.location
+        : `${parsed.origin}${proxyRes.headers.location}`
+      res.redirect(302, `/api/proxy?url=${encodeURIComponent(redirectUrl)}`)
+      return
+    }
     const ct = proxyRes.headers['content-type'] || ''
     const isM3U8 =
       ct.includes('mpegurl') ||

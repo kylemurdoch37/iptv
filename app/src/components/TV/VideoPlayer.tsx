@@ -64,7 +64,7 @@ export const VideoPlayer: React.FC = () => {
     setIsLoading(true);
 
     if (!url) {
-      setError('No stream URL available for this channel. This is a demo build.');
+      setError('No stream URL available for this channel.');
       setIsLoading(false);
       return;
     }
@@ -72,28 +72,45 @@ export const VideoPlayer: React.FC = () => {
     // Route through proxy in production to bypass SSL/CORS issues
     const streamUrl = proxiedUrl(url);
 
+    // Hard timeout — if nothing plays within 15s, give up
+    const timeout = setTimeout(() => {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+      setError("Stream timed out. The channel may be offline or geo-blocked. Try another channel.");
+      setIsLoading(false);
+    }, 15000);
+
+    const clearTimer = () => clearTimeout(timeout);
+
     if (Hls.isSupported()) {
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: true,
+        manifestLoadingTimeOut: 10000,
+        levelLoadingTimeOut: 10000,
+        fragLoadingTimeOut: 15000,
       });
       hlsRef.current = hls;
       hls.loadSource(streamUrl);
       hls.attachMedia(video);
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        clearTimer();
         setIsLoading(false);
         video.play().catch(() => setIsPlaying(false));
       });
 
       hls.on(Hls.Events.ERROR, (_event, data) => {
         if (data.fatal) {
+          clearTimer();
           const msg =
             data.type === 'networkError'
-              ? "Browser blocked the stream. This usually means the stream uses a self-signed certificate or is HTTP-only. Use the VLC button below to watch it."
+              ? "Couldn't reach this stream. It may be offline, geo-blocked, or have an invalid SSL certificate."
               : data.type === 'mediaError'
-              ? "Stream format not supported by your browser. Try opening in VLC instead."
-              : "Stream unavailable right now. Try VLC or another channel.";
+              ? "Stream format not supported by your browser. Try the VLC button below."
+              : "Stream unavailable right now. Try another channel.";
           setError(msg);
           setIsLoading(false);
         }
@@ -102,16 +119,19 @@ export const VideoPlayer: React.FC = () => {
       // Safari native HLS
       video.src = streamUrl;
       video.addEventListener('loadedmetadata', () => {
+        clearTimer();
         setIsLoading(false);
         video.play().catch(() => {});
       }, { once: true });
       video.addEventListener('error', () => {
-        setError('Failed to load stream. Try another channel.');
+        clearTimer();
+        setError("Couldn't load this stream. Try another channel or use VLC.");
         setIsLoading(false);
       }, { once: true });
     } else {
       // Fallback: try as direct src
       video.src = streamUrl;
+      clearTimer();
       setIsLoading(false);
     }
   }, []);
