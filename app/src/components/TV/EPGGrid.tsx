@@ -17,10 +17,21 @@ function formatTime(date: Date): string {
   return date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 }
 
+const US_UK = new Set(['us', 'gb', 'uk']);
+
+function isUsUk(ch: { groupTitle: string; id: string; tvgId: string }): boolean {
+  if (US_UK.has(ch.groupTitle.toLowerCase())) return true;
+  if (ch.id.endsWith('.us') || ch.id.endsWith('.uk')) return true;
+  if (ch.tvgId.endsWith('.us') || ch.tvgId.endsWith('.uk')) return true;
+  return false;
+}
+
 export const EPGGrid: React.FC = () => {
-  const { channels, workingChannels, epgData, setProgramPopup, setActiveChannelId, setCurrentView } = useStore();
+  const { channels, workingChannels, epgData, setProgramPopup, setActiveChannelId, setCurrentView, showAllChannels, setShowAllChannels } = useStore();
   // Use tested working channels once available, otherwise show all (with loading state)
-  const displayChannels = workingChannels.length > 0 ? workingChannels : channels;
+  const baseChannels = workingChannels.length > 0 ? workingChannels : channels;
+  const displayChannels = showAllChannels ? baseChannels : baseChannels.filter(isUsUk);
+  const hiddenCount = baseChannels.length - baseChannels.filter(isUsUk).length;
   const scrollRef = useRef<HTMLDivElement>(null);
   const [now, setNow] = useState(new Date());
 
@@ -125,18 +136,64 @@ export const EPGGrid: React.FC = () => {
             Your personalised channel schedule
           </p>
         </div>
-        <div
-          style={{
-            background: 'rgba(255,45,120,0.1)',
-            border: '1px solid var(--color-primary)',
-            borderRadius: '4px',
-            padding: '6px 14px',
-            fontSize: '13px',
-            fontWeight: '900',
-            color: 'var(--color-primary)',
-          }}
-        >
-          🕐 {formatTime(now)}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {!showAllChannels && hiddenCount > 0 && (
+            <button
+              onClick={() => setShowAllChannels(true)}
+              style={{
+                background: 'rgba(255,45,120,0.08)',
+                border: '1px solid rgba(255,45,120,0.4)',
+                borderRadius: '4px',
+                padding: '6px 14px',
+                fontSize: '11px',
+                fontWeight: '900',
+                color: 'var(--color-primary)',
+                cursor: 'pointer',
+                letterSpacing: '0.5px',
+                textTransform: 'uppercase',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,45,120,0.2)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,45,120,0.08)'; }}
+            >
+              🌍 View all {hiddenCount.toLocaleString()} more channels
+            </button>
+          )}
+          {showAllChannels && (
+            <button
+              onClick={() => setShowAllChannels(false)}
+              style={{
+                background: 'rgba(255,45,120,0.08)',
+                border: '1px solid rgba(255,45,120,0.4)',
+                borderRadius: '4px',
+                padding: '6px 14px',
+                fontSize: '11px',
+                fontWeight: '900',
+                color: 'var(--color-primary)',
+                cursor: 'pointer',
+                letterSpacing: '0.5px',
+                textTransform: 'uppercase',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,45,120,0.2)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,45,120,0.08)'; }}
+            >
+              🇬🇧🇺🇸 UK & US only
+            </button>
+          )}
+          <div
+            style={{
+              background: 'rgba(255,45,120,0.1)',
+              border: '1px solid var(--color-primary)',
+              borderRadius: '4px',
+              padding: '6px 14px',
+              fontSize: '13px',
+              fontWeight: '900',
+              color: 'var(--color-primary)',
+            }}
+          >
+            🕐 {formatTime(now)}
+          </div>
         </div>
       </div>
 

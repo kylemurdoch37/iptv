@@ -22,8 +22,17 @@ const CopyButton: React.FC<{ url: string }> = ({ url }) => {
   );
 };
 
+const US_UK = new Set(['us', 'gb', 'uk']);
+function isUsUk(ch: { groupTitle: string; id: string; tvgId: string }): boolean {
+  if (US_UK.has(ch.groupTitle.toLowerCase())) return true;
+  if (ch.id.endsWith('.us') || ch.id.endsWith('.uk')) return true;
+  if (ch.tvgId.endsWith('.us') || ch.tvgId.endsWith('.uk')) return true;
+  return false;
+}
+
 export const VideoPlayer: React.FC = () => {
-  const { channels, activeChannelId, setActiveChannelId, setCurrentView, epgData } = useStore();
+  const { channels, activeChannelId, setActiveChannelId, setCurrentView, epgData, showAllChannels } = useStore();
+  const stripChannels = showAllChannels ? channels : channels.filter(isUsUk);
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -548,7 +557,7 @@ export const VideoPlayer: React.FC = () => {
         }}
       >
         <div style={{ display: 'flex', gap: '8px' }}>
-          {channels.map((ch) => {
+          {stripChannels.map((ch) => {
             const isActive = ch.id === activeChannel.id;
             return (
               <button
