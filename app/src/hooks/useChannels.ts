@@ -6,8 +6,7 @@ import { shows } from '../data/showMappings';
 
 const CORS_PROXY = 'https://corsproxy.io/?url=';
 const M3U_SOURCES = [
-  'https://iptv-org.github.io/iptv/countries/gb.m3u',
-  'https://iptv-org.github.io/iptv/countries/us.m3u',
+  'https://daddylive.dad/playlist/m3u',
 ];
 
 async function fetchM3U(url: string): Promise<string> {
