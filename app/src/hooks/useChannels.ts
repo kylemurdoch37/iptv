@@ -7,17 +7,24 @@ import type { Channel } from '../types';
 
 const CORS_PROXY = 'https://corsproxy.io/?url=';
 
-// Primary stream source (user-specified)
-const DADDYLIVE_URL = 'https://daddylive.dad/playlist/m3u';
+// All iptv-org streams via their API
+const IPTV_API_STREAMS = 'https://iptv-org.github.io/api/streams.json';
+const IPTV_API_CHANNELS = 'https://iptv-org.github.io/api/channels.json';
 
-// iptv-org API for channel metadata + logos
-const API_CHANNELS_URL = 'https://iptv-org.github.io/api/channels.json';
-
-// iptv-org M3U fallbacks (country-filtered, reliable)
-const IPTV_ORG_SOURCES = [
-  'https://iptv-org.github.io/iptv/countries/gb.m3u',
-  'https://iptv-org.github.io/iptv/countries/us.m3u',
+// Additional M3U sources
+const EXTRA_M3U = [
+  'https://daddylive.dad/playlist/m3u',
 ];
+
+interface APIStream {
+  channel: string | null;
+  title: string;
+  url: string;
+  quality: string | null;
+  label: string | null;
+  user_agent: string | null;
+  referrer: string | null;
+}
 
 interface APIChannel {
   id: string;
@@ -29,51 +36,21 @@ interface APIChannel {
   logo?: string;
 }
 
-async function fetchText(url: string, timeout = 20000): Promise<string> {
+async function fetchJSON<T>(url: string): Promise<T> {
+  const resp = await fetch(url, { signal: AbortSignal.timeout(30000) });
+  if (!resp.ok) throw new Error(`${resp.status} ${url}`);
+  return resp.json() as Promise<T>;
+}
+
+async function fetchM3U(url: string): Promise<string> {
   const proxied = `${CORS_PROXY}${encodeURIComponent(url)}`;
-  const resp = await fetch(proxied, { signal: AbortSignal.timeout(timeout) });
+  const resp = await fetch(proxied, { signal: AbortSignal.timeout(20000) });
   if (!resp.ok) throw new Error(`${resp.status} ${url}`);
   return resp.text();
 }
 
-async function fetchAPIChannels(): Promise<Map<string, APIChannel>> {
-  try {
-    const resp = await fetch(API_CHANNELS_URL, { signal: AbortSignal.timeout(15000) });
-    if (!resp.ok) throw new Error('API unavailable');
-    const data: APIChannel[] = await resp.json();
-    const map = new Map<string, APIChannel>();
-    for (const ch of data) {
-      if (!ch.is_nsfw) map.set(ch.id, ch);
-      // Also index by normalised name for fuzzy matching
-      map.set(ch.name.toLowerCase(), ch);
-      for (const alt of ch.alt_names ?? []) {
-        map.set(alt.toLowerCase(), ch);
-      }
-    }
-    return map;
-  } catch {
-    return new Map();
-  }
-}
-
-function enrichWithAPI(channels: Channel[], apiMap: Map<string, APIChannel>): Channel[] {
-  return channels.map((ch) => {
-    // Try matching by tvg-id first, then by normalised name
-    const apiCh =
-      apiMap.get(ch.tvgId) ??
-      apiMap.get(ch.name.toLowerCase());
-
-    if (!apiCh) return ch;
-    return {
-      ...ch,
-      logo: apiCh.logo ?? ch.logo,
-      groupTitle: apiCh.country === 'GB' ? 'UK' : apiCh.country === 'US' ? 'US' : ch.groupTitle,
-    };
-  });
-}
-
 export function useChannels() {
-  const { profile, setChannels } = useStore();
+  const { profile, setChannels, setTestingProgress } = useStore();
 
   useEffect(() => {
     if (!profile.setupComplete) return;
@@ -82,46 +59,96 @@ export function useChannels() {
       profile.favouriteShowIds.includes(s.id)
     );
 
-    async function fetchChannels() {
-      // Fetch API metadata and all M3U sources in parallel
-      const [apiMap, daddyliveResult, ...iptvOrgResults] = await Promise.allSettled([
-        fetchAPIChannels(),
-        fetchText(DADDYLIVE_URL),
-        ...IPTV_ORG_SOURCES.map((u) => fetchText(u)),
+    async function loadAllChannels() {
+      setTestingProgress({ phase: 'fetching', done: 0, total: 0 });
+
+      // Fetch iptv-org API data + extra M3U sources in parallel
+      const [streamsResult, channelsResult, ...m3uResults] = await Promise.allSettled([
+        fetchJSON<APIStream[]>(IPTV_API_STREAMS),
+        fetchJSON<APIChannel[]>(IPTV_API_CHANNELS),
+        ...EXTRA_M3U.map(fetchM3U),
       ]);
 
-      // Parse all M3U sources
-      const parsedSources = [daddyliveResult, ...iptvOrgResults]
-        .filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled')
-        .flatMap((r) => parseM3U(r.value));
+      // Build channel metadata map
+      const channelMeta = new Map<string, APIChannel>();
+      if (channelsResult.status === 'fulfilled') {
+        for (const ch of channelsResult.value) {
+          if (!ch.is_nsfw) {
+            channelMeta.set(ch.id, ch);
+            channelMeta.set(ch.name.toLowerCase(), ch);
+            for (const alt of ch.alt_names ?? []) {
+              channelMeta.set(alt.toLowerCase(), ch);
+            }
+          }
+        }
+      }
 
-      const metadata = apiMap.status === 'fulfilled' ? apiMap.value : new Map<string, APIChannel>();
+      const allChannels: Channel[] = [];
+      const seen = new Set<string>();
 
-      if (parsedSources.length === 0) {
-        // Everything failed — use hardcoded fallback
-        const enriched = enrichWithAPI(FALLBACK_CHANNELS, metadata);
-        const matched = matchChannelsToShows(enriched, favouriteShows);
-        setChannels(matched.length > 0 ? matched : enriched);
+      const addChannel = (ch: Channel) => {
+        const key = ch.streamUrl.toLowerCase();
+        if (!key || seen.has(key)) return;
+        seen.add(key);
+        allChannels.push(ch);
+      };
+
+      // 1. iptv-org API streams (the full database)
+      if (streamsResult.status === 'fulfilled') {
+        for (const s of streamsResult.value) {
+          if (!s.url || s.label === 'Geo-blocked') continue;
+          const meta = s.channel ? channelMeta.get(s.channel) : null;
+          const name = meta?.name ?? s.title ?? s.channel ?? 'Unknown';
+          if (!name) continue;
+          addChannel({
+            id: s.channel ?? `stream-${allChannels.length}`,
+            name,
+            streamUrl: s.url,
+            tvgId: s.channel ?? '',
+            groupTitle: meta?.country ?? '',
+            logo: meta?.logo ?? '',
+          });
+        }
+      }
+
+      // 2. Extra M3U sources (daddylive etc.)
+      for (const result of m3uResults) {
+        if (result.status !== 'fulfilled') continue;
+        const parsed = parseM3U(result.value);
+        for (const ch of parsed) {
+          const meta = channelMeta.get(ch.tvgId) ?? channelMeta.get(ch.name.toLowerCase());
+          addChannel({
+            ...ch,
+            logo: meta?.logo ?? ch.logo,
+          });
+        }
+      }
+
+      // Fallback if everything failed
+      if (allChannels.length === 0) {
+        setChannels(FALLBACK_CHANNELS);
+        setTestingProgress({ phase: 'complete', done: 0, total: 0 });
         return;
       }
 
-      // Deduplicate by name (prefer daddylive entries as they come first)
-      const seen = new Set<string>();
-      const unique = parsedSources.filter((ch) => {
-        const key = ch.name.toLowerCase();
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
+      // Sort: matched channels first, then alphabetically
+      const matched = new Set(
+        matchChannelsToShows(allChannels, favouriteShows).map((c) => c.id + c.streamUrl)
+      );
+      allChannels.sort((a, b) => {
+        const aMatch = matched.has(a.id + a.streamUrl) ? 0 : 1;
+        const bMatch = matched.has(b.id + b.streamUrl) ? 0 : 1;
+        if (aMatch !== bMatch) return aMatch - bMatch;
+        return a.name.localeCompare(b.name);
       });
 
-      // Enrich with API metadata (logos, correct grouping)
-      const enriched = enrichWithAPI(unique, metadata);
-
-      // Match against favourite shows
-      const matched = matchChannelsToShows(enriched, favouriteShows);
-      setChannels(matched.length > 0 ? matched : enriched.slice(0, 60));
+      setChannels(allChannels);
+      setTestingProgress({ phase: 'testing', done: 0, total: allChannels.length });
     }
 
-    fetchChannels();
-  }, [profile.setupComplete, profile.favouriteShowIds, setChannels]);
+    loadAllChannels().catch(() => {
+      setChannels(FALLBACK_CHANNELS);
+      setTestingProgress({ phase: 'complete', done: 0, total: 0 });
+    });
+  }, [profile.setupComplete, profile.favouriteShowIds, setChannels, setTestingProgress]);
 }

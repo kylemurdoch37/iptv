@@ -3,7 +3,8 @@ import { useStore } from '../../store/useStore';
 import { shows } from '../../data/showMappings';
 
 export const Sidebar: React.FC = () => {
-  const { channels, activeChannelId, setActiveChannelId, setCurrentView, profile, epgData } = useStore();
+  const { channels, workingChannels, activeChannelId, setActiveChannelId, setCurrentView, profile, epgData } = useStore();
+  const displayChannels = workingChannels.length > 0 ? workingChannels : channels;
 
   const now = new Date();
 
@@ -57,13 +58,13 @@ export const Sidebar: React.FC = () => {
           <span>💅</span> My Channels
         </div>
 
-        {channels.length === 0 ? (
+        {displayChannels.length === 0 ? (
           <p style={{ fontSize: '11px', color: 'var(--color-text-dim)', padding: '8px 0' }}>
             Loading channels...
           </p>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            {channels.map((channel) => {
+            {displayChannels.map((channel) => {
               const isActive = channel.id === activeChannelId;
               const currentProg = getCurrentProgram(channel.id);
 

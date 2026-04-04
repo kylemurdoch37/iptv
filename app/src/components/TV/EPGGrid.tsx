@@ -18,7 +18,9 @@ function formatTime(date: Date): string {
 }
 
 export const EPGGrid: React.FC = () => {
-  const { channels, epgData, setProgramPopup, setActiveChannelId, setCurrentView } = useStore();
+  const { channels, workingChannels, epgData, setProgramPopup, setActiveChannelId, setCurrentView } = useStore();
+  // Use tested working channels once available, otherwise show all (with loading state)
+  const displayChannels = workingChannels.length > 0 ? workingChannels : channels;
   const scrollRef = useRef<HTMLDivElement>(null);
   const [now, setNow] = useState(new Date());
 
@@ -73,7 +75,7 @@ export const EPGGrid: React.FC = () => {
     setCurrentView('player');
   };
 
-  if (channels.length === 0) {
+  if (displayChannels.length === 0) {
     return (
       <div
         style={{
@@ -206,7 +208,7 @@ export const EPGGrid: React.FC = () => {
 
             {/* Channel rows */}
             <div style={{ position: 'relative' }}>
-              {channels.map((channel, rowIdx) => {
+              {displayChannels.map((channel, rowIdx) => {
                 const programs = getProgramsForChannel(channel.id);
 
                 return (
