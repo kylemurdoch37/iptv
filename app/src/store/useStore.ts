@@ -42,6 +42,8 @@ interface StoreState {
   setCurrentView: (view: 'setup' | 'epg' | 'player') => void;
   showAllChannels: boolean;
   setShowAllChannels: (show: boolean) => void;
+  allStreamsLoaded: boolean;
+  setAllStreamsLoaded: (loaded: boolean) => void;
 
   // Program popup
   programPopup: ProgramPopupData | null;
@@ -95,6 +97,8 @@ export const useStore = create<StoreState>()(
       setCurrentView: (currentView) => set({ currentView }),
       showAllChannels: false,
       setShowAllChannels: (showAllChannels) => set({ showAllChannels }),
+      allStreamsLoaded: false,
+      setAllStreamsLoaded: (allStreamsLoaded) => set({ allStreamsLoaded }),
 
       programPopup: null,
       setProgramPopup: (programPopup) => set({ programPopup }),

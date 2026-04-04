@@ -27,7 +27,7 @@ function isUsUk(ch: { groupTitle: string; id: string; tvgId: string }): boolean 
 }
 
 export const EPGGrid: React.FC = () => {
-  const { channels, workingChannels, epgData, setProgramPopup, setActiveChannelId, setCurrentView, showAllChannels, setShowAllChannels } = useStore();
+  const { channels, workingChannels, epgData, setProgramPopup, setActiveChannelId, setCurrentView, showAllChannels, setShowAllChannels, allStreamsLoaded, setAllStreamsLoaded } = useStore();
   // Use tested working channels once available, otherwise show all (with loading state)
   const baseChannels = workingChannels.length > 0 ? workingChannels : channels;
   const displayChannels = showAllChannels ? baseChannels : baseChannels.filter(isUsUk);
@@ -137,7 +137,31 @@ export const EPGGrid: React.FC = () => {
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          {!showAllChannels && hiddenCount > 0 && (
+          {/* Full stream library not yet fetched — offer to load it */}
+          {!allStreamsLoaded && (
+            <button
+              onClick={() => { setShowAllChannels(true); setAllStreamsLoaded(true); }}
+              style={{
+                background: 'rgba(255,45,120,0.08)',
+                border: '1px solid rgba(255,45,120,0.4)',
+                borderRadius: '4px',
+                padding: '6px 14px',
+                fontSize: '11px',
+                fontWeight: '900',
+                color: 'var(--color-primary)',
+                cursor: 'pointer',
+                letterSpacing: '0.5px',
+                textTransform: 'uppercase',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,45,120,0.2)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,45,120,0.08)'; }}
+            >
+              🌍 View all available channels
+            </button>
+          )}
+          {/* Full library loaded — toggle filter */}
+          {allStreamsLoaded && !showAllChannels && hiddenCount > 0 && (
             <button
               onClick={() => setShowAllChannels(true)}
               style={{
@@ -156,10 +180,10 @@ export const EPGGrid: React.FC = () => {
               onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,45,120,0.2)'; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,45,120,0.08)'; }}
             >
-              🌍 View all {hiddenCount.toLocaleString()} more channels
+              🌍 Show all {hiddenCount.toLocaleString()} more channels
             </button>
           )}
-          {showAllChannels && (
+          {allStreamsLoaded && showAllChannels && (
             <button
               onClick={() => setShowAllChannels(false)}
               style={{
