@@ -84,7 +84,13 @@ export const VideoPlayer: React.FC = () => {
 
       hls.on(Hls.Events.ERROR, (_event, data) => {
         if (data.fatal) {
-          setError(`Stream error: ${data.type}. Try another channel.`);
+          const msg =
+            data.type === 'networkError'
+              ? "Browser blocked the stream. This usually means the stream uses a self-signed certificate or is HTTP-only. Use the VLC button below to watch it."
+              : data.type === 'mediaError'
+              ? "Stream format not supported by your browser. Try opening in VLC instead."
+              : "Stream unavailable right now. Try VLC or another channel.";
+          setError(msg);
           setIsLoading(false);
         }
       });
@@ -251,90 +257,98 @@ export const VideoPlayer: React.FC = () => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              background: 'rgba(0,0,0,0.92)',
+              background: 'rgba(0,0,0,0.95)',
               flexDirection: 'column',
-              gap: '14px',
-              padding: '30px 20px',
+              gap: '16px',
+              padding: '24px 20px',
               textAlign: 'center',
+              overflowY: 'auto',
             }}
           >
-            <div style={{ fontSize: '44px' }}>📡</div>
-            <div style={{ color: 'white', fontFamily: 'var(--font-main)', fontSize: '16px' }}>
-              Stream Unavailable
-            </div>
-            <div style={{ color: 'var(--color-text-dim)', fontFamily: 'Arial, sans-serif', fontSize: '13px', maxWidth: '420px', lineHeight: '1.5' }}>
-              {error}
-              {activeChannel.streamUrl.startsWith('http://') && (
-                <span style={{ color: 'var(--color-accent)', display: 'block', marginTop: '6px', fontSize: '12px' }}>
-                  ⚠️ This stream uses HTTP — your browser may be blocking it on HTTPS pages.
-                </span>
-              )}
+            <div style={{ fontSize: '36px' }}>📡</div>
+
+            <div style={{ color: 'white', fontFamily: 'var(--font-main)', fontSize: '15px' }}>
+              Can't play in browser
             </div>
 
-            {/* Stream URL box */}
+            <div style={{
+              color: 'var(--color-text-dim)',
+              fontFamily: 'Arial, sans-serif',
+              fontSize: '13px',
+              maxWidth: '360px',
+              lineHeight: '1.6',
+            }}>
+              {error}
+            </div>
+
+            {/* VLC — primary fix */}
             {activeChannel.streamUrl && (
-              <div style={{
-                background: 'rgba(255,255,255,0.06)',
-                border: '1px solid rgba(255,45,120,0.3)',
-                borderRadius: '4px',
-                padding: '10px 14px',
-                maxWidth: '480px',
-                width: '100%',
-              }}>
-                <div style={{ fontSize: '10px', color: 'var(--color-secondary)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '6px', fontWeight: '900' }}>
-                  Stream URL
-                </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%', maxWidth: '300px' }}>
+                <a
+                  href={`vlc://${activeChannel.streamUrl.replace(/^https?:\/\//, '')}`}
+                  style={{
+                    background: 'var(--color-primary)',
+                    border: 'none',
+                    borderRadius: '4px',
+                    color: 'white',
+                    padding: '14px 20px',
+                    cursor: 'pointer',
+                    fontFamily: 'var(--font-main)',
+                    fontSize: '13px',
+                    fontWeight: '900',
+                    textTransform: 'uppercase',
+                    letterSpacing: '1px',
+                    textDecoration: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    boxShadow: '0 0 20px var(--color-glow)',
+                  }}
+                >
+                  📺 Open in VLC app
+                </a>
+
+                <CopyButton url={activeChannel.streamUrl} />
+
+                <button onClick={() => loadStream(activeChannel.streamUrl)} className="btn-ghost" style={{ padding: '10px' }}>
+                  ↺ Try Again
+                </button>
+              </div>
+            )}
+
+            {/* Collapsible URL */}
+            {activeChannel.streamUrl && (
+              <details style={{ maxWidth: '360px', width: '100%', textAlign: 'left' }}>
+                <summary style={{
+                  fontSize: '11px',
+                  color: 'var(--color-text-dim)',
+                  cursor: 'pointer',
+                  fontFamily: 'Arial, sans-serif',
+                  listStyle: 'none',
+                  textAlign: 'center',
+                }}>
+                  Show stream URL ▾
+                </summary>
                 <div style={{
+                  marginTop: '8px',
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(255,45,120,0.2)',
+                  borderRadius: '4px',
+                  padding: '10px',
                   fontFamily: 'monospace',
                   fontSize: '11px',
-                  color: 'rgba(255,255,255,0.7)',
+                  color: 'rgba(255,255,255,0.6)',
                   wordBreak: 'break-all',
                   userSelect: 'all',
                 }}>
                   {activeChannel.streamUrl}
                 </div>
-              </div>
+                <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.2)', marginTop: '8px', fontFamily: 'Arial, sans-serif', lineHeight: '1.5' }}>
+                  On a computer: open VLC → Media → Open Network Stream → paste this URL
+                </p>
+              </details>
             )}
-
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
-              {/* Copy URL */}
-              {activeChannel.streamUrl && (
-                <CopyButton url={activeChannel.streamUrl} />
-              )}
-              {/* Open in VLC (mobile deep link) */}
-              {activeChannel.streamUrl && (
-                <a
-                  href={`vlc://${activeChannel.streamUrl.replace(/^https?:\/\//, '')}`}
-                  style={{
-                    background: 'transparent',
-                    border: '2px solid var(--color-secondary)',
-                    borderRadius: '4px',
-                    color: 'var(--color-secondary)',
-                    padding: '8px 16px',
-                    cursor: 'pointer',
-                    fontFamily: 'var(--font-main)',
-                    fontSize: '11px',
-                    fontWeight: '900',
-                    textTransform: 'uppercase',
-                    letterSpacing: '1px',
-                    textDecoration: 'none',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    transition: 'all 0.2s ease',
-                  }}
-                >
-                  📺 Open in VLC
-                </a>
-              )}
-              <button onClick={() => loadStream(activeChannel.streamUrl)} className="btn-ghost">
-                ↺ Try Again
-              </button>
-            </div>
-
-            <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.25)', fontFamily: 'Arial, sans-serif', maxWidth: '380px', lineHeight: '1.5' }}>
-              On a computer: open VLC → Media → Open Network Stream → paste the URL above
-            </div>
           </div>
         )}
 
